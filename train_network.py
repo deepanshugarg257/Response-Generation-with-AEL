@@ -54,17 +54,17 @@ class Train_Network(object):
 
         query = torch.stack(query, 1) # B x max_length x V
 
-        correct_target = []
+        target = []
         one_hot = torch.cuda.FloatTensor(self.batch_size, self.output_vocab_size)
-        for target in target_variables:
+        for t in target_variables:
             one_hot.zero_()
-            correct_target.append(one_hot.scatter(1, target.view(-1, 1), 1))
+            target.append(one_hot.scatter(1, t.view(-1, 1), 1))
 
         for i in range(target_length, self.max_length):
-            if self.use_cuda: correct_target.append(torch.zeros([self.batch_size, self.output_vocab_size]).cuda())
-            else: correct_target.append(torch.zeros([self.batch_size, self.output_vocab_size]))
+            if self.use_cuda: target.append(torch.zeros([self.batch_size, self.output_vocab_size]).cuda())
+            else: target.append(torch.zeros([self.batch_size, self.output_vocab_size]))
 
-        correct_target = torch.stack(correct_target, 1) # B x max_length x V
+        target = torch.stack(target, 1) # B x max_length x V
 
         decoder_optimizer.zero_grad()
         discriminator_cnn_optimizer.zero_grad()
@@ -96,7 +96,7 @@ class Train_Network(object):
 
         response = torch.stack(response, 1) # B x max_length x V
         false_representation = self.discriminator_cnn(query, response)
-        true_representation = self.discriminator_cnn(query, correct_target)
+        true_representation = self.discriminator_cnn(query, target)
 
         decoder_loss = self.final_criterion(false_representation, true_representation)
 
@@ -119,7 +119,7 @@ class Train_Network(object):
 
 
     def pre_train(self, input_variables, target_variables, lengths, encoder_optimizer,
-              decoder_optimizer, discriminator_cnn_optimizer, discriminator_dense_optimizer, criterion):
+              decoder_optimizer, discriminator_cnn_optimizer, discriminator_dense_optimizer, criterion, train_dis):
 
         ''' Pad all tensors in this batch to same length. '''
         input_variables = torch.nn.utils.rnn.pad_sequence(input_variables) # L x B x E
@@ -140,17 +140,17 @@ class Train_Network(object):
 
         query = torch.stack(query, 1) # B x max_length x V
 
-        correct_target = []
+        target = []
         one_hot = torch.cuda.FloatTensor(self.batch_size, self.output_vocab_size)
-        for target in target_variables:
+        for t in target_variables:
             one_hot.zero_()
-            correct_target.append(one_hot.scatter(1, target.view(-1, 1), 1))
+            target.append(one_hot.scatter(1, t.view(-1, 1), 1))
 
         for i in range(target_length, self.max_length):
-            if self.use_cuda: correct_target.append(torch.zeros([self.batch_size, self.output_vocab_size]).cuda())
-            else: correct_target.append(torch.zeros([self.batch_size, self.output_vocab_size]))
+            if self.use_cuda: target.append(torch.zeros([self.batch_size, self.output_vocab_size]).cuda())
+            else: target.append(torch.zeros([self.batch_size, self.output_vocab_size]))
 
-        correct_target = torch.stack(correct_target, 1) # B x max_length x V
+        target = torch.stack(target, 1) # B x max_length x V
 
         encoder_optimizer.zero_grad()
         decoder_optimizer.zero_grad()
@@ -161,7 +161,6 @@ class Train_Network(object):
         encoder_hidden = self.encoder.init_hidden()
 
         encoder_outputs, encoder_hidden = self.encoder(input_variables, lengths, encoder_hidden)
-
         decoder_inputs = torch.cuda.FloatTensor(torch.cat([self.embedding(torch.cuda.LongTensor([self.SOS_token]))]*self.batch_size)).unsqueeze(0)
         if self.use_cuda: decoder_inputs = decoder_inputs.cuda()
 
@@ -184,18 +183,19 @@ class Train_Network(object):
             if self.use_cuda: response.append(torch.zeros([self.batch_size, self.output_vocab_size]).cuda())
             else: response.append(torch.zeros([self.batch_size, self.output_vocab_size]))
 
-        response = torch.stack(response, 1).detach() # B x max_length x V
-        false_representation = self.discriminator_cnn(query, response)
-        true_representation = self.discriminator_cnn(query, correct_target)
-        false_class = self.discriminator_dense(false_representation)
-        true_class = self.discriminator_dense(true_representation)
+        if random.uniform(0, 1) < train_dis:
+            response = torch.stack(response, 1).detach()  # B x max_length x V
+            false_representation = self.discriminator_cnn(query, response)
+            true_representation = self.discriminator_cnn(query, target)
+            false_class = self.discriminator_dense(false_representation)
+            true_class = self.discriminator_dense(true_representation)
 
-        discriminator_loss = 0
-        discriminator_loss += self.discriminator_criterion(false_class, self.fake_labels)
-        discriminator_loss += self.discriminator_criterion(true_class, self.true_labels)  # -1 = fake, 1 = real
-        discriminator_loss.backward()
-        discriminator_dense_optimizer.step()
-        discriminator_cnn_optimizer.step()
+            discriminator_loss = 0
+            discriminator_loss += self.discriminator_criterion(false_class, self.fake_labels)
+            discriminator_loss += self.discriminator_criterion(true_class, self.true_labels)  # -1 = fake, 1 = real
+            discriminator_loss.backward()
+            discriminator_dense_optimizer.step()
+            discriminator_cnn_optimizer.step()
         # print(false_class, true_class, self.fake_labels, self.true_labels)
 
         return loss.item() / target_length

@@ -24,7 +24,7 @@ class Encoder_RNN(nn.Module):
 
         self.embedding.weight.requires_grad = train_embedding
 
-        self.gru = nn.GRU(self.input_size, hidden_size, self.num_layers) #, bidirectional=True)
+        self.gru = nn.GRU(self.input_size, hidden_size, self.num_layers)
 
     def forward(self, input, input_lengths, hidden):
         '''
@@ -40,10 +40,7 @@ class Encoder_RNN(nn.Module):
         packed = torch.nn.utils.rnn.pack_padded_sequence(embedded, input_lengths)
         # outputs: (max_src_len, batch_size, hidden_size * num_directions)
         outputs, hidden = self.gru(packed, hidden)
-        # output_lens == input_lengths
         outputs, output_lengths = torch.nn.utils.rnn.pad_packed_sequence(outputs)
-        # Concatenate Bidirectional Outputs
-        # outputs = outputs[:, :, :self.hidden_size] + outputs[:, :, self.hidden_size:]
         return outputs, hidden
 
     def init_hidden(self, batch_size=0):

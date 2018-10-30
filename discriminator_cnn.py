@@ -5,8 +5,6 @@ class Discriminator_CNN(nn.Module):
     def __init__(self, query_vocab_size, response_vocab_size,
                  window_size = 2, num_filters=128):
         super(Discriminator_CNN, self).__init__()
-        self.use_cuda = torch.cuda.is_available()
-
         self.response_cnn = nn.Sequential(
             nn.Conv2d(1, num_filters, kernel_size=[window_size, response_vocab_size], padding = [1, 0]),
             nn.BatchNorm2d(num_filters),
@@ -19,11 +17,6 @@ class Discriminator_CNN(nn.Module):
         )
 
         self.max_pool = nn.MaxPool2d(kernel_size=[window_size,1], padding = [1, 0])
-
-        if self.use_cuda:
-            self.response_cnn = self.response_cnn.cuda()
-            self.query_cnn = self.query_cnn.cuda()
-            self.max_pool = self.max_pool.cuda()
 
     def forward(self, query, response):
         batch_size = response.size()[0]

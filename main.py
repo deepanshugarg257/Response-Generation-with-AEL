@@ -19,7 +19,7 @@ from helper import Helper
 
 use_cuda = torch.cuda.is_available()
 
-def final_train_iters(model, input_lang, output_lang, pairs, max_length, batch_size=1,
+def fine_tune_iters(model, input_lang, output_lang, pairs, max_length, batch_size=1,
                 n_iters=50, learning_rate=0.000001, tracking_pair=None, print_every=1, plot_every=1): ####learning rate increased. check again 0.001
 
     start = time.time()
@@ -38,6 +38,7 @@ def final_train_iters(model, input_lang, output_lang, pairs, max_length, batch_s
         param.requires_grad = False
 
     model.decoder.out.requires_grad = False #only training the hidden part
+    model.encoder.requires_grad = False
 
     decoder_trainable_parameters = list(filter(lambda p: p.requires_grad, model.decoder.parameters()))
     discriminator_cnn_trainable_parameters = list(filter(lambda p: p.requires_grad, model.discriminator_cnn.parameters()))
@@ -113,7 +114,7 @@ def final_train_iters(model, input_lang, output_lang, pairs, max_length, batch_s
 
 
 def pre_train_iters(model, input_lang, output_lang, pairs, max_length, batch_size=1,
-                n_iters=50, learning_rate=0.001, tracking_pair=None, print_every=1, plot_every=1):
+                n_iters=50, learning_rate=0.001, tracking_pair=None, print_every=1, plot_every=1, train_dis = 0.2):
 
     start = time.time()
     plot_losses = []
@@ -154,15 +155,11 @@ def pre_train_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
         for i in range(0, samples, batch_size):
             input_variables = in_seq[i : i + batch_size] # Batch Size x Sequence Length
             target_variables = out_seq[i : i + batch_size]
-            # for blah in target_variables:
-            #     print("target", blah.size())
             lengths = input_lengths[i : i + batch_size]
-
-            # print lengths
 
             loss = model.pre_train(input_variables, target_variables, lengths,
                                    encoder_optimizer, decoder_optimizer, discriminator_cnn_optimizer, discriminator_dense_optimizer,
-                                   criterion)
+                                   criterion, train_dis)
             print_loss_total += loss
             plot_loss_total += loss
 
@@ -252,27 +249,32 @@ if __name__ == "__main__":
     embedding_src = Get_Embedding(input_lang.word2index, input_lang.word2count, "../Embeddings/")
     embedding_dest = Get_Embedding(output_lang.word2index, input_lang.word2count, "../Embeddings/")
 
+    input_emb_shape = torch.from_numpy(embedding_src.embedding_matrix).type(torch.FloatTensor).shape
+    output_emb_shape = torch.from_numpy(embedding_dest.embedding_matrix).type(torch.FloatTensor).shape
+
+    input_vocab_size = input_emb_shape[0]
+    output_vocab_size = output_emb_shape[0]
+
     encoder = Encoder_RNN(hidden_size, torch.from_numpy(embedding_src.embedding_matrix).type(torch.FloatTensor),
                           num_layers=num_layers, batch_size=batch_size, use_embedding=True, train_embedding=False)
     decoder = Decoder_RNN(hidden_size, torch.from_numpy(embedding_dest.embedding_matrix).type(torch.FloatTensor),
                           num_layers=num_layers, use_embedding=True, train_embedding=False, dropout_p=0.1)
+    discriminator_cnn = Discriminator_CNN(input_vocab_size, output_vocab_size)
+    discriminator_dense = Discriminator_Dense(max_length)
 
     if use_cuda:
         encoder = encoder.cuda()
         decoder = decoder.cuda()
+        discriminator_cnn = discriminator_cnn.cuda()
+        discriminator_dense = discriminator_dense.cuda()
 
-    print("Training Network.")
-    input_vocab_size = torch.from_numpy(embedding_src.embedding_matrix).type(torch.FloatTensor).shape[0]
-    output_vocab_size = torch.from_numpy(embedding_dest.embedding_matrix).type(torch.FloatTensor).shape[0]
-    discriminator_cnn = Discriminator_CNN(input_vocab_size, output_vocab_size)
-    discriminator_dense = Discriminator_Dense(max_length)
     train_network = Train_Network(encoder, decoder, discriminator_cnn, discriminator_dense, output_lang, max_length, torch.from_numpy(embedding_dest.embedding_matrix).type(torch.FloatTensor),  input_vocab_size, batch_size=batch_size, num_layers=num_layers)
     if pre_train:
         print("######################################### Pre Training #########################################")
         pre_train_iters(train_network, input_lang, output_lang, pairs, max_length, batch_size=batch_size, tracking_pair=tracking_pair, n_iters=100)
         exit()
 
-    print("######################################### Final Training #########################################")
-    final_train_iters(train_network, input_lang, output_lang, pairs, max_length, batch_size=batch_size, tracking_pair=tracking_pair, n_iters=200)
+    print("######################################### Fine Tuning #########################################")
+    fine_tune_iters(train_network, input_lang, output_lang, pairs, max_length, batch_size=batch_size, tracking_pair=tracking_pair, n_iters=200)
 
     evaluate_randomly(train_network, input_lang, pairs)
