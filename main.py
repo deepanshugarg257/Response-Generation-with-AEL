@@ -71,6 +71,7 @@ def fine_tune_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
 
     print('Beginning Model Training.')
 
+    start = time.clock()
     for epoch in range(1, n_iters + 1):
         for i in range(0, samples, batch_size):
             # print("decoder parameters", decoder_trainable_parameters)
@@ -110,6 +111,8 @@ def fine_tune_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
             discriminator_cnn_optimizer = optim.RMSprop(discriminator_cnn_trainable_parameters, lr=learning_rate)
             discriminator_dense_optimizer = optim.RMSprop(discriminator_dense_trainable_parameters, lr=learning_rate)
 
+        start = time.clock
+        print("Time taken for epoch:", time.clock() - start)
         print("\n")
 
 
@@ -151,6 +154,7 @@ def pre_train_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
 
     print('Beginning Model Training.')
 
+    start = time.clock()
     for epoch in range(1, n_iters + 1):
         for i in range(0, samples, batch_size):
             input_variables = in_seq[i : i + batch_size] # Batch Size x Sequence Length
@@ -177,12 +181,14 @@ def pre_train_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
             plot_losses.append(plot_loss_avg)
             plot_loss_total = 0
 
-        if epoch % 15 == 0:
+        if epoch % 5 == 0:
             learning_rate /= 2
             encoder_optimizer = optim.RMSprop(encoder_trainable_parameters, lr=learning_rate)
             decoder_optimizer = optim.RMSprop(decoder_trainable_parameters, lr=learning_rate)
             discriminator_cnn_optimizer = optim.RMSprop(discriminator_cnn_trainable_parameters, lr=learning_rate)
             discriminator_dense_optimizer = optim.RMSprop(discriminator_dense_trainable_parameters, lr=learning_rate)
+        print("Time taken for epoch:", time.clock() - start)
+        start = time.clock
         print("\n")
 
     torch.save(model.encoder.state_dict(), '../parameters/encoder_params')
