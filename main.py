@@ -29,10 +29,10 @@ def fine_tune_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
     print_discriminator_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
-    model.encoder.load_state_dict(torch.load('../parameters/encoder_params'))
-    model.decoder.load_state_dict(torch.load('../parameters/decoder_params'))
-    model.discriminator_cnn.load_state_dict(torch.load('../parameters/discriminator_cnn_params'))
-    model.discriminator_dense.load_state_dict(torch.load('../parameters/discriminator_dense_params'))
+    model.encoder.load_state_dict(torch.load('./parameters/encoder_params'))
+    model.decoder.load_state_dict(torch.load('./parameters/decoder_params'))
+    model.discriminator_cnn.load_state_dict(torch.load('./parameters/discriminator_cnn_params'))
+    model.discriminator_dense.load_state_dict(torch.load('./parameters/discriminator_dense_params'))
 
     for param in model.encoder.parameters():
         param.requires_grad = False
@@ -111,9 +111,9 @@ def fine_tune_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
             discriminator_cnn_optimizer = optim.RMSprop(discriminator_cnn_trainable_parameters, lr=learning_rate)
             discriminator_dense_optimizer = optim.RMSprop(discriminator_dense_trainable_parameters, lr=learning_rate)
 
-        start = time.clock
         print("Time taken for epoch:", time.clock() - start)
         print("\n")
+        start = time.clock
 
 
 def pre_train_iters(model, input_lang, output_lang, pairs, max_length, batch_size=1,
@@ -150,7 +150,7 @@ def pre_train_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
         input_lengths.append(input_length)
 
     samples -= (samples + 1) % batch_size
-    criterion = nn.NLLLoss(ignore_index=0)
+    criterion = nn.CrossEntropyLoss(ignore_index=0)
 
     print('Beginning Model Training.')
 
@@ -191,10 +191,10 @@ def pre_train_iters(model, input_lang, output_lang, pairs, max_length, batch_siz
         start = time.clock
         print("\n")
 
-    torch.save(model.encoder.state_dict(), '../parameters/encoder_params')
-    torch.save(model.decoder.state_dict(), '../parameters/decoder_params')
-    torch.save(model.discriminator_cnn.state_dict(), '../parameters/discriminator_cnn_params')
-    torch.save(model.discriminator_dense.state_dict(), '../parameters/discriminator_dense_params')
+    torch.save(model.encoder.state_dict(), './parameters/encoder_params')
+    torch.save(model.decoder.state_dict(), './parameters/decoder_params')
+    torch.save(model.discriminator_cnn.state_dict(), './parameters/discriminator_cnn_params')
+    torch.save(model.discriminator_dense.state_dict(), './parameters/discriminator_dense_params')
 
     # helpFn.show_plot(plot_losses)
 
@@ -225,7 +225,6 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--max_length", type=int, help="Maximum Sentence Length.", default=20)
     parser.add_argument("--num_layers", type=int, help="Number of layers in Encoder and Decoder", default=2)
     parser.add_argument("-t", "--target_term_id", type=str, help="Target term id.", default='7')
-    parser.add_argument("-d", "--dataset", type=str, help="Dataset file.", default='../../Drive/Information Extraction Team/Dataset/final.tsv')
     parser.add_argument("-e", "--embedding_folder", type=str, help="Folder containing word embeddings.", default='../../Drive/Information Extraction Team/Embeddings/')
     parser.add_argument("-p", "--pre_train", type=str, help="True/False", default=True)
 
@@ -252,8 +251,8 @@ if __name__ == "__main__":
 
     helpFn = Helper()
 
-    embedding_src = Get_Embedding(input_lang.word2index, input_lang.word2count, "../Embeddings/")
-    embedding_dest = Get_Embedding(output_lang.word2index, input_lang.word2count, "../Embeddings/")
+    embedding_src = Get_Embedding(input_lang.word2index, input_lang.word2count, "./Embeddings/")
+    embedding_dest = Get_Embedding(output_lang.word2index, input_lang.word2count, "./Embeddings/")
 
     input_emb_shape = torch.from_numpy(embedding_src.embedding_matrix).type(torch.FloatTensor).shape
     output_emb_shape = torch.from_numpy(embedding_dest.embedding_matrix).type(torch.FloatTensor).shape
@@ -277,10 +276,10 @@ if __name__ == "__main__":
     train_network = Train_Network(encoder, decoder, discriminator_cnn, discriminator_dense, output_lang, max_length, torch.from_numpy(embedding_dest.embedding_matrix).type(torch.FloatTensor),  input_vocab_size, batch_size=batch_size, num_layers=num_layers)
     if pre_train:
         print("######################################### Pre Training #########################################")
-        pre_train_iters(train_network, input_lang, output_lang, pairs, max_length, batch_size=batch_size, tracking_pair=tracking_pair, n_iters=100)
+        pre_train_iters(train_network, input_lang, output_lang, pairs, max_length, batch_size=batch_size, tracking_pair=tracking_pair, n_iters=1)
         exit()
 
     print("######################################### Fine Tuning #########################################")
-    fine_tune_iters(train_network, input_lang, output_lang, pairs, max_length, batch_size=batch_size, tracking_pair=tracking_pair, n_iters=200)
+    fine_tune_iters(train_network, input_lang, output_lang, pairs, max_length, batch_size=batch_size, tracking_pair=tracking_pair, n_iters=1)
 
     evaluate_randomly(train_network, input_lang, pairs)

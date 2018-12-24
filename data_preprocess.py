@@ -20,7 +20,7 @@ class Data_Preprocess(object):
         print("Reading lines...")
 
         # Read the file and split into lines
-        lines = open('../Datasets/%s-%s.txt' % (lang1, lang2), encoding='utf-8').readlines()
+        lines = open('./Datasets/%s-%s.txt' % (lang1, lang2), encoding='utf-8').readlines()
 
         # Split every line into pairs and normalize
         pairs = [[self.normalize_string(s) for s in l.split('\t')] for l in lines]
@@ -87,8 +87,8 @@ class Data_Preprocess(object):
 
     def filter_pair(self, count, p):
         return len(p[0].split(' ')) < self.max_length and \
-               len(p[1].split(' ')) < self.max_length and \
-               p[1].startswith(self.eng_prefixes)
+               len(p[1].split(' ')) < self.max_length
+               # p[1].startswith(self.eng_prefixes)
 
     def filter_pairs(self, pairs):
         return [[pair[0].split(' '), pair[1].split(' ')] for count, pair in enumerate(pairs) if self.filter_pair(count, pair)]

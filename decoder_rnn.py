@@ -34,7 +34,7 @@ class Decoder_RNN(nn.Module):
 
     def forward(self, input, hidden, encoder_outputs, input_lengths):
         '''
-        input           -> (Batch Size x 1 x Vocab. len.)
+        input           -> (1 x Batch Size x Emb. len.)
         hidden          -> (Num. Layers * Num. Directions x Batch Size x Hidden Size)
         encoder_outputs -> (Max Sentence Length, Batch Size, Hidden Size * Num. Directions)
         input_lengths   -> (Batch Size (Sorted in decreasing order of lengths))
@@ -42,15 +42,15 @@ class Decoder_RNN(nn.Module):
         batch_size = input.size()[0]
 
         output, hidden = self.gru(input, hidden)
-
         output = output.squeeze(0) # (1, B, V) -> (B, V)
-        z = torch.randn(batch_size, output.size()[1]) * self.root_var # to make variance 0.1
 
+        z = torch.randn(batch_size, output.size()[1])
         if self.use_cuda:
             z = z.cuda()
+        z *= self.root_var# to make variance 0.1
 
-        output = F.log_softmax(self.out(output + z), dim=1)
-        return output, hidden #, attn_weights
+        output = self.out(output + z) #TODO: softmax vs log_softmax
+        return output, hidden
 
     def init_hidden(self, batch_size):
         result = torch.zeros(self.num_layers, batch_size, self.hidden_size)

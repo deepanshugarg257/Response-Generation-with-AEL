@@ -161,18 +161,31 @@ class Train_Network(object):
         encoder_hidden = self.encoder.init_hidden()
 
         encoder_outputs, encoder_hidden = self.encoder(input_variables, lengths, encoder_hidden)
-        decoder_inputs = torch.cuda.FloatTensor(torch.cat([self.embedding(torch.cuda.LongTensor([self.SOS_token]))]*self.batch_size)).unsqueeze(0)
+        decoder_inputs = torch.cuda.FloatTensor(torch.cat([self.embedding(torch.cuda.LongTensor([self.SOS_token]))]*self.batch_size)).unsqueeze(0) # 1xBxE
         if self.use_cuda: decoder_inputs = decoder_inputs.cuda()
 
         decoder_hidden = encoder_hidden[:self.num_layers].view(self.num_layers, self.batch_size, -1)
 
         response = []
+        sf = nn.Softmax(1)
         for di in range(target_length):
-            decoder_outputs, decoder_hidden = self.decoder(decoder_inputs, decoder_hidden, encoder_outputs, lengths)
+            decoder_outputs, decoder_hidden = self.decoder(decoder_inputs, decoder_hidden, encoder_outputs, lengths) # op: BxV
             response.append(decoder_outputs)
-            decoder_inputs = decoder_outputs.unsqueeze(1) # (B, V) -> (B, 1, V)
-            loss += criterion(decoder_outputs, target_variables[di])
-            decoder_inputs = torch.mm(decoder_inputs.squeeze(1), self.embedding.weight).unsqueeze(0)  # 1xBxE
+            loss += criterion(decoder_outputs, target_variables[di]) #TODO: check t_v[di] is correct or not
+
+            topv, topi = decoder_outputs.topk(50) #TODO: change this hyperparameter and compare results
+            temp_emb = []
+            for ex in topi:
+                temp_emb.append(self.embedding.weight[ex])
+            temp_emb = torch.stack(temp_emb, 0) #should be B x 50 x emb
+            # print("temp_emb size", temp_emb.size())
+            decoder_inputs = torch.einsum('bx,bxk->bk', (sf(topv), temp_emb)).unsqueeze(0)
+            # decoder_inputs = torch.mm(topv, temp_emb).unsqueeze(0) # should be 1xBxE
+            # print("decoder inputs size", decoder_inputs.size())
+
+
+            # decoder_inputs = decoder_outputs
+            # decoder_inputs = torch.mm(decoder_inputs, self.embedding.weight).unsqueeze(0)  # 1xBxE
 
         loss.backward()
 
